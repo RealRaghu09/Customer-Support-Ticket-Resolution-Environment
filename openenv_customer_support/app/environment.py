@@ -1,8 +1,7 @@
 import random
-from openenv.core.env import Env
-from openenv.core.models import Action, Observation
+from openenv.core.env_server import Environment , Action , Observation
 
-class GuessNumberEnv(Env):
+class GuessNumberEnv(Environment):
     def __init__(self):
         super().__init__()
         self.target = None
