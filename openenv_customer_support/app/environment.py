@@ -1,65 +1,71 @@
 import random
-from openenv.core.env_server import Environment , Action , Observation
+from openenv.core.env_server import Environment, Observation, Action
 
-class GuessNumberEnv(Environment):
+
+class ResourceEnv(Environment):
     def __init__(self):
         super().__init__()
-        self.target = None
         self.steps = 0
-        self.max_steps = 10
+        self.max_steps = 1
+        self.task = None
 
-    # Reset environment
     def reset(self):
-        self.target = random.randint(1, 100)
         self.steps = 0
+
+        users = random.randint(50, 500)
+        load = random.choice(["low", "medium", "high"])
+
+        # Ground truth logic
+        if load == "low":
+            cpu, mem = 2, 4
+        elif load == "medium":
+            cpu, mem = 4, 8
+        else:
+            cpu, mem = 8, 16
+
+        self.task = {
+            "users": users,
+            "load": load,
+            "target_cpu": cpu,
+            "target_mem": mem,
+        }
+
+        obs = f"Users: {users}, Load: {load}"
 
         return Observation(
-            observation="Game started! Guess number between 1-100",
-            reward=0,
+            observation=obs,
+            reward=0.0,
             done=False,
             info={}
         )
 
-    # Step function
     def step(self, action: Action):
-        guess = int(action.data)
         self.steps += 1
 
-        if guess == self.target:
-            return Observation(
-                observation="Correct!",
-                reward=10,
-                done=True,
-                info={"target": self.target}
-            )
+        pred_cpu = int(action.data.get("cpu", 0))
+        pred_mem = int(action.data.get("memory", 0))
 
-        elif self.steps >= self.max_steps:
-            return Observation(
-                observation=f"Game Over! Target was {self.target}",
-                reward=-10,
-                done=True,
-                info={}
-            )
+        gt_cpu = self.task["target_cpu"]
+        gt_mem = self.task["target_mem"]
 
-        elif guess < self.target:
-            return Observation(
-                observation="Too low",
-                reward=-1,
-                done=False,
-                info={}
-            )
+        # ---- reward design (IMPORTANT) ----
+        cpu_error = abs(pred_cpu - gt_cpu)
+        mem_error = abs(pred_mem - gt_mem)
 
-        else:
-            return Observation(
-                observation="Too high",
-                reward=-1,
-                done=False,
-                info={}
-            )
+        score = 1.0 - (0.1 * cpu_error + 0.05 * mem_error)
+        score = max(0.0, min(1.0, score))
 
-    # Optional: full state
+        return Observation(
+            observation="Evaluation complete",
+            reward=score,
+            done=True,
+            info={
+                "target_cpu": gt_cpu,
+                "target_mem": gt_mem
+            }
+        )
+
     def state(self):
         return {
-            "steps": self.steps,
-            "max_steps": self.max_steps
+            "steps": self.steps
         }
